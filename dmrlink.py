@@ -93,7 +93,7 @@ final_packet = ''
 def user_setting_write(dmr_id, setting, value):
 ##    try:
     # Open file and load as dict for modification
-        with open(user_settings_file, 'r') as f:
+        with open("./user_settings.txt", 'r') as f:
 ##            if f.read() == '{}':
 ##                user_dict = {}
             user_dict = ast.literal_eval(f.read())
@@ -107,7 +107,7 @@ def user_setting_write(dmr_id, setting, value):
             if setting.upper() == 'COM':
                 user_comment = user_dict[dmr_id][3]['comment'] = value[0:35]
     # Write modified dict to file
-        with open(user_settings_file, 'w') as user_dict_file:
+        with open("./user_settings.txt", 'w') as user_dict_file:
             user_dict_file.write(str(user_dict))
             user_dict_file.close()
             logger.info('User setting saved')
@@ -231,44 +231,45 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                     # Begin APRS format and upload
     ##                            aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(final_packet[29:36]) + str(final_packet[39]) + '/' + str(re.sub(',', '', final_packet[41:49])) + str(final_packet[52]) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
                     try:
-                        with open(user_settings_file, 'r') as f:
-                            user_settings = ast.literal_eval(f.read())
-                            if int_id(_rf_src) not in user_settings:
-                                aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
-                            else:
-                                global comment, ssid, icon_table, icon_icon, course, speed
-                                #logger.info(user_settings)
-                                if user_settings[int_id(_rf_src)][1]['ssid'] == '':
-                                    ssid = user_ssid
-                                if user_settings[int_id(_rf_src)][3]['comment'] == '':
-                                    comment = aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
-                                if user_settings[int_id(_rf_src)][2]['icon'] == '':
-                                    icon_table = '/'
-                                    icon_icon = '['
-                                if user_settings[int_id(_rf_src)][2]['icon'] != '':
-                                    icon_table = user_settings[int_id(_rf_src)][2]['icon'][0]
-                                    icon_icon = user_settings[int_id(_rf_src)][2]['icon'][1]
-                                if user_settings[int_id(_rf_src)][1]['ssid'] != '':
-                                    ssid = user_settings[int_id(_rf_src)][1]['ssid']
-                                if user_settings[int_id(_rf_src)][3]['comment'] != '':
-                                    comment = user_settings[int_id(_rf_src)][3]['comment']
-                                if loc.true_course == '0.0':
-                                    course = '000'
-                                if loc.spd_over_grnd == float(0.0):
-                                    speed = '000'
-                                if loc.true_course != '0.0':
-                                    course = re.sub('.0','', str(round(loc.true_course))).zfill(3)
-                                if loc.spd_over_grnd != float(0.0):
-                                    speed = re.sub('.0','', str(round(loc.spd_over_grnd))).zfill(3)
-                                #logger.info(type(loc.spd_over_grnd))
-                                #logger.info(course)
-                                #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + '/' + str(comment)
-                                aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + str(course) + '/' + str(speed) + '/' + str(comment)
+##                        with open("./user_settings.txt", 'r') as f:
+##                            user_settings = ast.literal_eval(f.read())
+                        user_settings = ast.literal_eval(os.popen('cat ' + user_settings_file).read())
+                        if int_id(_rf_src) not in user_settings:
+                            aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                        else:
+                            global comment, ssid, icon_table, icon_icon, course, speed
+                            #logger.info(user_settings)
+                            if user_settings[int_id(_rf_src)][1]['ssid'] == '':
+                                ssid = user_ssid
+                            if user_settings[int_id(_rf_src)][3]['comment'] == '':
+                                comment = aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                            if user_settings[int_id(_rf_src)][2]['icon'] == '':
+                                icon_table = '/'
+                                icon_icon = '['
+                            if user_settings[int_id(_rf_src)][2]['icon'] != '':
+                                icon_table = user_settings[int_id(_rf_src)][2]['icon'][0]
+                                icon_icon = user_settings[int_id(_rf_src)][2]['icon'][1]
+                            if user_settings[int_id(_rf_src)][1]['ssid'] != '':
+                                ssid = user_settings[int_id(_rf_src)][1]['ssid']
+                            if user_settings[int_id(_rf_src)][3]['comment'] != '':
+                                comment = user_settings[int_id(_rf_src)][3]['comment']
+                            if loc.true_course == '0.0':
+                                course = '000'
+                            if loc.spd_over_grnd == float(0.0):
+                                speed = '000'
+                            if loc.true_course != '0.0':
+                                course = re.sub('.0','', str(round(loc.true_course))).zfill(3)
+                            if loc.spd_over_grnd != float(0.0):
+                                speed = re.sub('.0','', str(round(loc.spd_over_grnd))).zfill(3)
+                            #logger.info(type(loc.spd_over_grnd))
+                            #logger.info(course)
+                            #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + '/' + str(comment)
+                            aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + str(course) + '/' + str(speed) + '/' + str(comment)
                         self._logger.info(aprs_loc_packet)
                         #self._logger.info('User comment: ' + comment)
                         #self._logger.info('User SSID: ' + ssid)
                         #self._logger.info('User icon: ' + icon_table + icon_icon)
-                        f.close()
+##                        f.close()
                     except:
                         logger.info('Error or user settings file not found, proceeding with default settings.')
                         logger.info(loc.true_course)
