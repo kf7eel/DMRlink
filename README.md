@@ -10,7 +10,7 @@ Modify settings in hblink-SAMPLE and gps_config.py.
 
 Run: **python dmrlink.py**
 
-**It is best to use this as a peer.**
+**It is best to use this in a subdirectory of the main project to allow sharing of user_settings.txt. This can also work as a stand alone application.**
 
 ---
 ### FOR SUPPORT, DISCUSSION, GETTING INVOLVED ###

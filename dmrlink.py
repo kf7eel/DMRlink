@@ -93,7 +93,7 @@ final_packet = ''
 def user_setting_write(dmr_id, setting, value):
 ##    try:
     # Open file and load as dict for modification
-        with open("./user_settings.txt", 'r') as f:
+        with open(user_settings_file, 'r') as f:
 ##            if f.read() == '{}':
 ##                user_dict = {}
             user_dict = ast.literal_eval(f.read())
@@ -107,7 +107,7 @@ def user_setting_write(dmr_id, setting, value):
             if setting.upper() == 'COM':
                 user_comment = user_dict[dmr_id][3]['comment'] = value[0:35]
     # Write modified dict to file
-        with open("./user_settings.txt", 'w') as user_dict_file:
+        with open(user_settings_file, 'w') as user_dict_file:
             user_dict_file.write(str(user_dict))
             user_dict_file.close()
             logger.info('User setting saved')
@@ -231,7 +231,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                     # Begin APRS format and upload
     ##                            aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(final_packet[29:36]) + str(final_packet[39]) + '/' + str(re.sub(',', '', final_packet[41:49])) + str(final_packet[52]) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
                     try:
-                        with open("./user_settings.txt", 'r') as f:
+                        with open(user_settings_file, 'r') as f:
                             user_settings = ast.literal_eval(f.read())
                             if int_id(_rf_src) not in user_settings:
                                 aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
