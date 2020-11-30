@@ -49,20 +49,282 @@ from ipsc.ipsc_mask import *
 from ipsc.reporting_const import *
 
 # Imports from DMR Utilities package
-from dmr_utils.utils import hex_str_2, hex_str_3, hex_str_4, int_id, try_download, mk_id_dict
+from dmr_utils.utils import hex_str_2, hex_str_3, hex_str_4, int_id, try_download, mk_id_dict, int_id, get_alias
+from dmr_utils import bptc, decode
+from bitarray import bitarray
+from bitarray.util import ba2int as ba2num
 
+import codecs
+import aprslib
+#Needed for working with NMEA
+import pynmea2
 
-__author__      = 'Cortney T. Buffington, N0MJS'
+# Modules for executing commands/scripts
+import os
+#from gps_functions import cmd_list
+
+#Modules for APRS settings
+import ast
+#from pathlib import Path
+import re
+import datetime
+
+# import the settings
+from gps_config import *
+
+__author__      = 'Cortney T. Buffington, N0MJS; Eric Craw, KF7EEL'
 __copyright__   = 'Copyright (c) 2013 - 2016 Cortney T. Buffington, N0MJS and the K0USY Group'
 __credits__     = 'Adam Fast, KC0YLK; Dave Kierzkowski, KD8EYF; Steve Zingman, N4IRS; Mike Zingman, N4IRR'
 __license__     = 'GNU GPLv3'
-__maintainer__  = 'Cort Buffington, N0MJS'
-__email__       = 'n0mjs@me.com'
+__maintainer__  = 'Cort Buffington, N0MJS; Eric Craw, KF7EEL'
+__email__       = 'n0mjs@me.com; kf7eel@qsl.net'
+
+
+btf = ''
+
+hdr_start = ''
+
+n_packet_assembly = 0
+
+packet_assembly = ''
+
+final_packet = ''
+
+def user_setting_write(dmr_id, setting, value):
+##    try:
+    # Open file and load as dict for modification
+        with open("./user_settings.txt", 'r') as f:
+##            if f.read() == '{}':
+##                user_dict = {}
+            user_dict = ast.literal_eval(f.read())
+            if dmr_id not in user_dict:
+                user_dict[dmr_id] = [{'call': str(get_alias((dmr_id), subscriber_ids))}, {'ssid': ''}, {'icon': ''}, {'comment': ''}]
+
+            if setting.upper() == 'ICON':
+                user_dict[dmr_id][2]['icon'] = value
+            if setting.upper() == 'SSID':
+                user_dict[dmr_id][1]['ssid'] = value  
+            if setting.upper() == 'COM':
+                user_comment = user_dict[dmr_id][3]['comment'] = value[0:35]
+    # Write modified dict to file
+        with open("./user_settings.txt", 'w') as user_dict_file:
+            user_dict_file.write(str(user_dict))
+            user_dict_file.close()
+            logger.info('User setting saved')
+            packet_assembly = ''
+##    except:
+##        logger.info('No data file found, creating one.')
+##        #Path('./user_settings.txt').mkdir(parents=True, exist_ok=True)
+##        Path('./user_settings.txt').touch()
+        
+
+def aprs_send(packet):
+    AIS = aprslib.IS(aprs_callsign, passwd=aprs_passcode, host=aprs_server, port=aprs_port)
+    AIS.connect()
+    AIS.sendall(packet)
+    AIS.close()
+    logger.info('Sent APRS packet')
+
+
+# Process SMS, do something bases on message
+
+def process_sms(from_id, sms):
+    if sms == 'ID':
+        logger.info(str(get_alias(int_id(from_id), subscriber_ids)) + ' - ' + str(int_id(from_id)))
+        pass
+    if sms == 'TEST':
+        logger.info('It works!')
+        pass
+    if '@ICON' in sms:
+        user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@ICON| ','',sms))
+    if '@SSID' in sms:
+        user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@SSID| ','',sms))
+    if '@COM' in sms:
+        user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@COM |@COM','',sms))
+    try:
+        if sms in cmd_list:
+            logger.info('Executing command/script.')
+            os.popen(cmd_list[sms]).read()
+    except:
+        logger.info('Exception. Command possibly not in list, or other error.')
+    
+    else:
+        pass
+
+
+
+def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
+    if int_id(_dst_sub) == data_id_1 or int_id(_dst_sub) == data_id_2:
+        global btf
+        dmr_data = ahex(_data)[76:100]
+        data_type = ahex(_data)[61]
+        dmr_data_bytes = str(dmr_data).decode("hex")
+    ##        if int(data_type) == 3:
+    ##            n_test= 1
+        #btf = bitarray.frombytes((dmr_data[57:64]))
+        #btf = ((dmr_data[57:64]))
+        btf_top = ba2num(decode.to_bits(str(dmr_data).decode("hex"))[65:72])
+        _dtype = int(data_type)
+        _rf_src = _src_sub
+        self._logger.info('(%s) Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
+    ##        self._logger.info(_data[57:65])
+        #self._logger.info(type(dmr_data))
+        self._logger.info('Data: ' + dmr_data)
+        #self._logger.info('full group data: ' + str(ahex(_data)))
+        #self._logger.info(str(int_id(_src_sub)))
+        #self._logger.info(str(btf_top))
+        #Sself._logger.info(str(data_type) + str(type(data_type)))
+        #self._logger.info('group data encode: ' + str(ahex(encode_header_lc((ahex(_data))[75:100]))))
+       # self._logger.info(_peerid)
+       #self._logger.info(bitarray(str(_data[:120])))
+        #process_dmr_data(_src_sub, data_type, btf, dmr_data)
+    ##########################################
+        global n_packet_assembly
+    ##        #logger.info(_dtype_vseq)
+    ##    if int_id(_dst_id) == data_id:
+    ##        #logger.info(type(_seq))
+    ##        if type(_seq) is bytes:
+    ##            pckt_seq = int.from_bytes(_seq, 'big')
+    ##        else:
+    ##            pckt_seq = _seq
+    ##        # Try to classify header
+    ##        if _call_type == call_type or (_call_type == 'vcsbk' and pckt_seq > 3): #int.from_bytes(_seq, 'big') > 3 ):
+        if _dtype == 6:
+            global hdr_start, btf
+            hdr_start = dmr_data[0:3]
+            self._logger.info('Header from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + '. DMR ID: ' + str(int_id(_rf_src)))
+            #logger.info(ahex(bptc_decode(_data)))
+            self._logger.info('Blocks to follow: ' + str(btf))
+            btf = btf_top
+            packet_assembly = ''
+        # Data blocks at 1/2 rate, see https://github.com/g4klx/MMDVM/blob/master/DMRDefines.h for data types. _dtype_seq defined here also
+        if _dtype == 7:
+            #self._logger.info(str(btf))
+            btf = btf - 1
+            self._logger.info('Block #: ' + str(btf))
+            #logger.info(_seq)
+            global packet_assembly
+            self._logger.info('Data block from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + '. DMR ID: ' + str(int_id(_rf_src)))
+            #logger.info(ahex(bptc_decode(_data)))
+            
+    ##                if _seq == 0:
+    ##                    n_packet_assembly = 0
+    ##                    packet_assembly = ''
+                
+            if btf < btf + 1:
+                n_packet_assembly = n_packet_assembly + 1
+                packet_assembly = packet_assembly + str(dmr_data) #str((decode_full_lc(b_packet)).strip('bitarray('))
+                #self._logger.info(packet_assembly)
+            # Use block 0 as trigger. $GPRMC must also be in string to indicate NMEA.
+            # This triggers the APRS upload
+            if btf == 0:#_seq == 12:
+                #final_packet = str(bitarray(re.sub("\)|\(|bitarray|'", '', packet_assembly)).tobytes().decode('utf-8', 'ignore'))
+                final_packet = packet_assembly.decode("hex")
+                #sms_hex = str(ba2hx(bitarray(re.sub("\)|\(|bitarray|'", '', packet_assembly))))
+                sms_hex = packet_assembly[74:-8]
+                #NMEA GPS sentence
+                if '$GPRMC' in final_packet:
+                    self._logger.info(final_packet + '\n')
+                    nmea_parse = re.sub('A\*.*|.*\$', '', str(final_packet))
+                    loc = pynmea2.parse(nmea_parse, check=False)
+                    self._logger.info('Latitude: ' + str(loc.lat) + str(loc.lat_dir) + ' Longitude: ' + str(loc.lon) + str(loc.lon_dir) + ' Direction: ' + str(loc.true_course) + ' Speed: ' + str(loc.spd_over_grnd) + '\n')
+                    # Begin APRS format and upload
+    ##                            aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(final_packet[29:36]) + str(final_packet[39]) + '/' + str(re.sub(',', '', final_packet[41:49])) + str(final_packet[52]) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                    try:
+                        with open("./user_settings.txt", 'r') as f:
+                            user_settings = ast.literal_eval(f.read())
+                            if int_id(_rf_src) not in user_settings:
+                                aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                            else:
+                                global comment, ssid, icon_table, icon_icon, course, speed
+                                #logger.info(user_settings)
+                                if user_settings[int_id(_rf_src)][1]['ssid'] == '':
+                                    ssid = user_ssid
+                                if user_settings[int_id(_rf_src)][3]['comment'] == '':
+                                    comment = aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                                if user_settings[int_id(_rf_src)][2]['icon'] == '':
+                                    icon_table = '/'
+                                    icon_icon = '['
+                                if user_settings[int_id(_rf_src)][2]['icon'] != '':
+                                    icon_table = user_settings[int_id(_rf_src)][2]['icon'][0]
+                                    icon_icon = user_settings[int_id(_rf_src)][2]['icon'][1]
+                                if user_settings[int_id(_rf_src)][1]['ssid'] != '':
+                                    ssid = user_settings[int_id(_rf_src)][1]['ssid']
+                                if user_settings[int_id(_rf_src)][3]['comment'] != '':
+                                    comment = user_settings[int_id(_rf_src)][3]['comment']
+                                if loc.true_course == '0.0':
+                                    course = '000'
+                                if loc.spd_over_grnd == float(0.0):
+                                    speed = '000'
+                                if loc.true_course != '0.0':
+                                    course = re.sub('.0','', str(round(loc.true_course))).zfill(3)
+                                if loc.spd_over_grnd != float(0.0):
+                                    speed = re.sub('.0','', str(round(loc.spd_over_grnd))).zfill(3)
+                                #logger.info(type(loc.spd_over_grnd))
+                                #logger.info(course)
+                                #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + '/' + str(comment)
+                                aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + str(course) + '/' + str(speed) + '/' + str(comment)
+                        self._logger.info(aprs_loc_packet)
+                        #self._logger.info('User comment: ' + comment)
+                        #self._logger.info('User SSID: ' + ssid)
+                        #self._logger.info('User icon: ' + icon_table + icon_icon)
+                        f.close()
+                    except:
+                        logger.info('Error or user settings file not found, proceeding with default settings.')
+                        logger.info(loc.true_course)
+                        #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(15) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[' + str(round(loc.true_course)).zfill(3) + '/' + str(round(loc.spd_over_grnd)).zfill(3) + '/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                        aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(15) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                        logger.info(aprs_loc_packet)
+                        #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[' + str(round(loc.true_course)).zfill(3) + '/' + str(round(loc.spd_over_grnd)).zfill(3) + '/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+
+                try:
+                    # Try parse of APRS packet. If it fails, it will not upload to APRS-IS
+                    #logger.info(re.sub('\..*', '', str(round(loc.true_course)).zfill(3)))
+                    aprslib.parse(aprs_loc_packet)
+                    # Float values of lat and lon. Anything that is not a number will cause it to fail.
+                    float(loc.lat)
+                    float(loc.lon)
+                    aprs_send(aprs_loc_packet)
+                    packet_assembly = ''
+                except:
+
+                    self._logger.info('Failed to parse packet. Packet may be deformed. Not uploaded.')
+                    # Get callsign based on DMR ID
+                    # End APRS-IS upload
+                # Assume this is an SMS message
+                if '$GPRMC' not in final_packet:
+                    # Motorola type SMS header
+                    if '824' in hdr_start or '024' in hdr_start:
+                        self._logger.info('\nMotorola type SMS')
+                        #sms = codecs.decode(bytes.fromhex(''.join(sms_hex[74:-8].split('00'))), 'utf-8')
+                        #sms = ''.join(sms_hex).split('00')).decode('hex')
+                        sms = ''.join((sms_hex.split('00')))
+                        sms = sms.decode('hex')
+                        logger.info(sms)
+                        self._logger.info('\n\n' + 'Received SMS from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + ', DMR ID: ' + str(int_id(_rf_src)) + ': ' + str(sms) + '\n')
+                        process_sms(_rf_src, sms)
+                    else:
+                        self._logger.info('Unknown type SMS')
+                        self._logger.info(final_packet)
+                        logger.info(hdr_start)
+                        pass
+                        #logger.info(bitarray(re.sub("\)|\(|bitarray|'", '', str(bptc_decode(_data)).tobytes().decode('utf-8', 'ignore'))))
+                    #logger.info('\n\n' + 'Received SMS from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + ', DMR ID: ' + str(int_id(_rf_src)) + ': ' + str(sms) + '\n')
+                # Reset the packet assembly to prevent old data from returning.
+                packet_assembly = ''
+                hdr_start = ''
+            #logger.info(_seq)
+            #logger.info(_dtype_vseq)
+        #logger.info(ahex(bptc_decode(_data)).decode('utf-8', 'ignore'))
+        #logger.info(bitarray(re.sub("\)|\(|bitarray|'", '', str(bptc_decode(_data)).tobytes().decode('utf-8', 'ignore'))))
+    else:
+        pass
+
+
 
 
 # Global variables used whether we are a module or __main__
 systems = {}
-
 
 # Timed loop used for reporting IPSC status
 #
@@ -449,36 +711,211 @@ class IPSC(DatagramProtocol):
         self._logger.debug('(%s) Repeater Call Monitor Origin Packet Received: %s', self._system, ahex(_data))
         if self._rcm:
             self._report.send_rcm(self._system + ','+ _data)
+        #self._logger.info(_data)
             
     def call_mon_rpt(self, _data):
         self._logger.debug('(%s) Repeater Call Monitor Repeating Packet Received: %s', self._system, ahex(_data))
         if self._rcm:
             self._report.send_rcm(self._system + ',' + _data)
+        #logger.info(_data)
             
     def call_mon_nack(self, _data):
         self._logger.debug('(%s) Repeater Call Monitor NACK Packet Received: %s', self._system, ahex(_data))
         if self._rcm:
             self._report.send_rcm(self._system + ',' + _data)
+        #self._logger.info(_data)
     
     def xcmp_xnl(self, _data):
         self._logger.debug('(%s) XCMP/XNL Packet Received: %s', self._system, ahex(_data))
+        #self._logger.info(_data)
         
     def repeater_wake_up(self, _data):
         self._logger.debug('(%s) Repeater Wake-Up Packet Received: %s', self._system, ahex(_data))
+        #self._logger.info(_data)
         
     def group_voice(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
         self._logger.debug('(%s) Group Voice Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
+        #self._logger.info(_data)
     
     def private_voice(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
         self._logger.debug('(%s) Private Voice Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
+        #self._logger.info(_data)
     
-    def group_data(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):    
-        self._logger.debug('(%s) Group Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
+    def group_data(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
+        logger.info('Group data: ')
+        process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data)
+##        global btf
+##        dmr_data = ahex(_data)[76:100]
+##        data_type = ahex(_data)[61]
+##        dmr_data_bytes = str(dmr_data).decode("hex")
+####        if int(data_type) == 3:
+####            n_test= 1
+##        #btf = bitarray.frombytes((dmr_data[57:64]))
+##        #btf = ((dmr_data[57:64]))
+##        btf_top = ba2num(decode.to_bits(str(dmr_data).decode("hex"))[65:72])
+##        _dtype = int(data_type)
+##        _rf_src = _src_sub
+##        self._logger.info('(%s) Group Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
+####        self._logger.info(_data[57:65])
+##        #self._logger.info(type(dmr_data))
+##        self._logger.info('group data: ' + dmr_data)
+##        #self._logger.info('full group data: ' + str(ahex(_data)))
+##        #self._logger.info(str(int_id(_src_sub)))
+##        #self._logger.info(str(btf_top))
+##        #Sself._logger.info(str(data_type) + str(type(data_type)))
+##        #self._logger.info('group data encode: ' + str(ahex(encode_header_lc((ahex(_data))[75:100]))))
+##       # self._logger.info(_peerid)
+##       #self._logger.info(bitarray(str(_data[:120])))
+##        #process_dmr_data(_src_sub, data_type, btf, dmr_data)
+############################################
+##        global n_packet_assembly
+####        #logger.info(_dtype_vseq)
+####    if int_id(_dst_id) == data_id:
+####        #logger.info(type(_seq))
+####        if type(_seq) is bytes:
+####            pckt_seq = int.from_bytes(_seq, 'big')
+####        else:
+####            pckt_seq = _seq
+####        # Try to classify header
+####        if _call_type == call_type or (_call_type == 'vcsbk' and pckt_seq > 3): #int.from_bytes(_seq, 'big') > 3 ):
+##        if _dtype == 6:
+##            global hdr_start, btf
+##            hdr_start = dmr_data[0:3]
+##            self._logger.info('Header from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + '. DMR ID: ' + str(int_id(_rf_src)))
+##            #logger.info(ahex(bptc_decode(_data)))
+##            self._logger.info('Blocks to follow: ' + str(btf))
+##            btf = btf_top
+##            packet_assembly = ''
+##        # Data blocks at 1/2 rate, see https://github.com/g4klx/MMDVM/blob/master/DMRDefines.h for data types. _dtype_seq defined here also
+##        if _dtype == 7:
+##            #self._logger.info(str(btf))
+##            btf = btf - 1
+##            self._logger.info('Block #: ' + str(btf))
+##            #logger.info(_seq)
+##            global packet_assembly
+##            self._logger.info('Data block from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + '. DMR ID: ' + str(int_id(_rf_src)))
+##            #logger.info(ahex(bptc_decode(_data)))
+##            
+##    ##                if _seq == 0:
+##    ##                    n_packet_assembly = 0
+##    ##                    packet_assembly = ''
+##                
+##            if btf < btf + 1:
+##                n_packet_assembly = n_packet_assembly + 1
+##                packet_assembly = packet_assembly + str(dmr_data) #str((decode_full_lc(b_packet)).strip('bitarray('))
+##                #self._logger.info(packet_assembly)
+##            # Use block 0 as trigger. $GPRMC must also be in string to indicate NMEA.
+##            # This triggers the APRS upload
+##            if btf == 0:#_seq == 12:
+##                #final_packet = str(bitarray(re.sub("\)|\(|bitarray|'", '', packet_assembly)).tobytes().decode('utf-8', 'ignore'))
+##                final_packet = packet_assembly.decode("hex")
+##                #sms_hex = str(ba2hx(bitarray(re.sub("\)|\(|bitarray|'", '', packet_assembly))))
+##                sms_hex = packet_assembly[74:-8]
+##                #NMEA GPS sentence
+##                if '$GPRMC' in final_packet:
+##                    self._logger.info(final_packet + '\n')
+##                    nmea_parse = re.sub('A\*.*|.*\$', '', str(final_packet))
+##                    loc = pynmea2.parse(nmea_parse, check=False)
+##                    self._logger.info('Latitude: ' + str(loc.lat) + str(loc.lat_dir) + ' Longitude: ' + str(loc.lon) + str(loc.lon_dir) + ' Direction: ' + str(loc.true_course) + ' Speed: ' + str(loc.spd_over_grnd) + '\n')
+##                    # Begin APRS format and upload
+##    ##                            aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(final_packet[29:36]) + str(final_packet[39]) + '/' + str(re.sub(',', '', final_packet[41:49])) + str(final_packet[52]) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+##                    try:
+##                        with open("./user_settings.txt", 'r') as f:
+##                            user_settings = ast.literal_eval(f.read())
+##                            if int_id(_rf_src) not in user_settings:
+##                                aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+##                            else:
+##                                global comment, ssid, icon_table, icon_icon, course, speed
+##                                #logger.info(user_settings)
+##                                if user_settings[int_id(_rf_src)][1]['ssid'] == '':
+##                                    ssid = user_ssid
+##                                if user_settings[int_id(_rf_src)][3]['comment'] == '':
+##                                    comment = aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+##                                if user_settings[int_id(_rf_src)][2]['icon'] == '':
+##                                    icon_table = '/'
+##                                    icon_icon = '['
+##                                if user_settings[int_id(_rf_src)][2]['icon'] != '':
+##                                    icon_table = user_settings[int_id(_rf_src)][2]['icon'][0]
+##                                    icon_icon = user_settings[int_id(_rf_src)][2]['icon'][1]
+##                                if user_settings[int_id(_rf_src)][1]['ssid'] != '':
+##                                    ssid = user_settings[int_id(_rf_src)][1]['ssid']
+##                                if user_settings[int_id(_rf_src)][3]['comment'] != '':
+##                                    comment = user_settings[int_id(_rf_src)][3]['comment']
+##                                if loc.true_course == '0.0':
+##                                    course = '000'
+##                                if loc.spd_over_grnd == float(0.0):
+##                                    speed = '000'
+##                                if loc.true_course != '0.0':
+##                                    course = re.sub('.0','', str(round(loc.true_course))).zfill(3)
+##                                if loc.spd_over_grnd != float(0.0):
+##                                    speed = re.sub('.0','', str(round(loc.spd_over_grnd))).zfill(3)
+##                                #logger.info(type(loc.spd_over_grnd))
+##                                #logger.info(course)
+##                                #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + '/' + str(comment)
+##                                aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + icon_table + str(loc.lon[0:8]) + str(loc.lon_dir) + icon_icon + str(course) + '/' + str(speed) + '/' + str(comment)
+##                        self._logger.info(aprs_loc_packet)
+##                        #self._logger.info('User comment: ' + comment)
+##                        #self._logger.info('User SSID: ' + ssid)
+##                        #self._logger.info('User icon: ' + icon_table + icon_icon)
+##                        f.close()
+##                    except:
+##                        logger.info('Error or user settings file not found, proceeding with default settings.')
+##                        logger.info(loc.true_course)
+##                        #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(15) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[' + str(round(loc.true_course)).zfill(3) + '/' + str(round(loc.spd_over_grnd)).zfill(3) + '/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+##                        aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(15) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+##                        logger.info(aprs_loc_packet)
+##                        #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(loc.lat[0:7]) + str(loc.lat_dir) + '/' + str(loc.lon[0:8]) + str(loc.lon_dir) + '[' + str(round(loc.true_course)).zfill(3) + '/' + str(round(loc.spd_over_grnd)).zfill(3) + '/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+##
+##                try:
+##                    # Try parse of APRS packet. If it fails, it will not upload to APRS-IS
+##                    #logger.info(re.sub('\..*', '', str(round(loc.true_course)).zfill(3)))
+##                    aprslib.parse(aprs_loc_packet)
+##                    # Float values of lat and lon. Anything that is not a number will cause it to fail.
+##                    float(loc.lat)
+##                    float(loc.lon)
+##                    aprs_send(aprs_loc_packet)
+##                    packet_assembly = ''
+##                except:
+##
+##                    self._logger.info('Failed to parse packet. Packet may be deformed. Not uploaded.')
+##                    # Get callsign based on DMR ID
+##                    # End APRS-IS upload
+##                # Assume this is an SMS message
+##                if '$GPRMC' not in final_packet:
+##                    # Motorola type SMS header
+##                    if '824' in hdr_start or '024' in hdr_start:
+##                        self._logger.info('\nMotorola type SMS')
+##                        #sms = codecs.decode(bytes.fromhex(''.join(sms_hex[74:-8].split('00'))), 'utf-8')
+##                        #sms = ''.join(sms_hex).split('00')).decode('hex')
+##                        sms = ''.join((sms_hex.split('00')))
+##                        sms = sms.decode('hex')
+##                        logger.info(sms)
+##                        self._logger.info('\n\n' + 'Received SMS from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + ', DMR ID: ' + str(int_id(_rf_src)) + ': ' + str(sms) + '\n')
+##                        process_sms(_rf_src, sms)
+##                    else:
+##                        self._logger.info('Unknown type SMS')
+##                        self._logger.info(final_packet)
+##                        logger.info(hdr_start)
+##                        pass
+##                        #logger.info(bitarray(re.sub("\)|\(|bitarray|'", '', str(bptc_decode(_data)).tobytes().decode('utf-8', 'ignore'))))
+##                    #logger.info('\n\n' + 'Received SMS from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + ', DMR ID: ' + str(int_id(_rf_src)) + ': ' + str(sms) + '\n')
+##                # Reset the packet assembly to prevent old data from returning.
+##                packet_assembly = ''
+##                hdr_start = ''
+##            #logger.info(_seq)
+##            #logger.info(_dtype_vseq)
+##        #logger.info(ahex(bptc_decode(_data)).decode('utf-8', 'ignore'))
+##        #logger.info(bitarray(re.sub("\)|\(|bitarray|'", '', str(bptc_decode(_data)).tobytes().decode('utf-8', 'ignore'))))
+
+
+##########################################
     
     def private_data(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):    
-        self._logger.debug('(%s) Private Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
+        logger.info('Private data: ')
+        process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data)
 
     def unknown_message(self, _packettype, _peerid, _data):
+        self._logger.info('unknown data: ' + str(ahex(_data)))
         self._logger.error('(%s) Unknown Message - Type: %s From: %s Packet: %s', self._system, ahex(_packettype), int_id(_peerid), ahex(_data))
 
 
@@ -814,7 +1251,8 @@ class IPSC(DatagramProtocol):
         _packettype = data[0:1]
         _peerid     = data[1:5]
         _ipsc_seq   = data[5:6]
-    
+        #self._logger.info(bitarray(str(data)))
+        #self._logger.info(type(data))
         # AUTHENTICATE THE PACKET
         if self._local['AUTH_ENABLED']:
             if not self.validate_auth(self._local['AUTH_KEY'], data):
@@ -842,6 +1280,9 @@ class IPSC(DatagramProtocol):
                 _ts         = bool(_call_info & TS_CALL_MSK) + 1
                 _end        = bool(_call_info & END_MSK)
                 
+                self._logger.info(_ts)
+                self._logger.info(_end)
+                  
                 # Extract RTP Header Fields
                 '''
                 Coming soon kids!!!
@@ -1079,7 +1520,7 @@ if __name__ == '__main__':
     if cli_args.LOG_HANDLERS:
         CONFIG['LOGGER']['LOG_HANDLERS'] = cli_args.LOG_HANDLERS
     logger = config_logging(CONFIG['LOGGER'])
-    logger.info('DMRlink \'dmrlink.py\' (c) 2013 - 2017 N0MJS & the K0USY Group - SYSTEM STARTING...')
+    logger.info('DMRlink \'dmrlink.py\' (c) 2013 - 2017 N0MJS & the K0USY Group - SYSTEM STARTING... \n GPS/Data and D-APRS modifications by Eric, KF7EEL. \n ')
     
     # Set signal handers so that we can gracefully exit if need be
     def sig_handler(_signal, _frame):

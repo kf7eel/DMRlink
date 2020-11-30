@@ -1,3 +1,17 @@
+# Modified for GPS/Data and D-APRS
+
+This is a modified version of DMRlink to support GPS decoding of certain DMR radios. I "ported" the code for this from my other project, a GPS/Data/D-APRS application for HBLink3. See [https://github.com/kf7eel/hblink3](https://github.com/kf7eel/hblink3). As a result, the code is rough and downright yucky at times (Python 3 to Python 2). Never the less, it operates the same way for the user as the main HBLink3 GPS/Data application. The setup and code under the hood, well, thats a different story.
+
+This was done for [PNW Digital](http://pnwdigital.net/) to allow their IPSC repeater network to utilize the same GPS, SMS, and APRS features as the main project. I have uploaded it here as a convenience for others who may want something like this.
+
+**If at all possible, try to use the main project instead of this.** However, if you find that there is no way to bridge DMR data packets from IPSC to MMDVM as I did, then this should work.
+
+Modify settings in hblink-SAMPLE and gps_config.py.
+
+Run: **python dmrlink.py**
+
+**It is best to use this as a peer.**
+
 ---
 ### FOR SUPPORT, DISCUSSION, GETTING INVOLVED ###
 
