@@ -90,6 +90,8 @@ packet_assembly = ''
 
 final_packet = ''
 
+#_rf_src = ''
+
 def user_setting_write(dmr_id, setting, value):
 ##    try:
     # Open file and load as dict for modification
@@ -129,6 +131,7 @@ def aprs_send(packet):
 # Process SMS, do something bases on message
 
 def process_sms(from_id, sms):
+    #from_id = _rf_src
     if sms == 'ID':
         logger.info(str(get_alias(int_id(from_id), subscriber_ids)) + ' - ' + str(int_id(from_id)))
         pass
@@ -141,6 +144,45 @@ def process_sms(from_id, sms):
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@SSID| ','',sms))
     if '@COM' in sms:
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@COM |@COM','',sms))
+    if '@MH' in sms:
+        grid_square = re.sub('@MH ', '', sms)
+        if len(grid_square) < 6:
+            pass
+        else:
+            aprs_coord = ast.literal_eval(os.popen(str('./mh_to_aprs.py ' + grid_square)).read())
+            aprs_lat = aprs_coord[0]
+            aprs_lon = aprs_coord[1]
+            logger.info('Latitude: ' + str(aprs_lat))
+            logger.info('Longitude: ' + str(aprs_lon))
+            user_settings = ast.literal_eval(os.popen('cat ./user_settings.txt').read())
+            if int_id(from_id) not in user_settings:
+                aprs_loc_packet = str(get_alias(int_id(from_id), subscriber_ids)) + '-' + str(user_ssid) + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(aprs_lat) + '/' + str(aprs_lon) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+            else:
+                if user_settings[int_id(from_id)][1]['ssid'] == '':
+                    ssid = user_ssid
+                if user_settings[int_id(from_id)][3]['comment'] == '':
+                    comment = aprs_comment + ' DMR ID: ' + str(int_id(from_id))
+                if user_settings[int_id(from_id)][2]['icon'] == '':
+                    icon_table = '/'
+                    icon_icon = '['
+                if user_settings[int_id(from_id)][2]['icon'] != '':
+                    icon_table = user_settings[int_id(from_id)][2]['icon'][0]
+                    icon_icon = user_settings[int_id(from_id)][2]['icon'][1]
+                if user_settings[int_id(from_id)][1]['ssid'] != '':
+                    ssid = user_settings[int_id(from_id)][1]['ssid']
+                if user_settings[int_id(from_id)][3]['comment'] != '':
+                    comment = user_settings[int_id(from_id)][3]['comment']
+                aprs_loc_packet = str(get_alias(int_id(from_id), subscriber_ids)) + '-' + ssid + '>APRS,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(aprs_lat) + icon_table + str(aprs_lon) + icon_icon + '/' + str(comment)
+            logger.info(aprs_loc_packet)
+        try:
+            aprslib.parse(aprs_loc_packet)
+            aprs_send(aprs_loc_packet)
+            pass
+        except:
+            logger.info('Exception. Not uploaded')
+        packet_assembly = ''
+
+
     try:
         if sms in cmd_list:
             logger.info('Executing command/script.')
