@@ -53,6 +53,7 @@ from dmr_utils.utils import hex_str_2, hex_str_3, hex_str_4, int_id, try_downloa
 from dmr_utils import bptc, decode
 from bitarray import bitarray
 from bitarray.util import ba2int as ba2num
+from bitarray.util import hex2ba as h2b
 
 import codecs
 import aprslib
@@ -91,6 +92,7 @@ packet_assembly = ''
 final_packet = ''
 
 #_rf_src = ''
+hdr_type = ''
 
 def user_setting_write(dmr_id, setting, value):
 ##    try:
@@ -199,6 +201,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
     if int_id(_dst_sub) == data_id_1 or int_id(_dst_sub) == data_id_2:
         global btf
         dmr_data = ahex(_data)[76:100]
+        dmr_data_bits = h2b(dmr_data)
         data_type = ahex(_data)[61]
         dmr_data_bytes = str(dmr_data).decode("hex")
     ##        if int(data_type) == 3:
@@ -231,7 +234,78 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
     ##            pckt_seq = _seq
     ##        # Try to classify header
     ##        if _call_type == call_type or (_call_type == 'vcsbk' and pckt_seq > 3): #int.from_bytes(_seq, 'big') > 3 ):
-        if _dtype == 6:
+
+# Begin MD-380 here
+        if _dtype == 6 and dmr_data[3] == '5':
+                global udt_block, hdr_type
+                logger.info('MD-380 type UDT header detected. Very next packet should be location.')
+                hdr_type = '380'
+##            if _dtype_vseq == 6 and hdr_type == '380' or _dtype_vseq == 'group' and hdr_type == '380':
+        if _dtype == 6 and hdr_type == '380':
+            udt_block = 1
+        if _dtype == 7 and hdr_type == '380':
+            udt_block = udt_block - 1
+            if udt_block == 0:
+                logger.info('MD-380 type packet. This should contain the GPS location.')
+                if ba2num(dmr_data_bits[1:2]) == 1:
+                    lat_dir = 'N'
+                if ba2num(dmr_data_bits[1:2]) == 0:
+                    lat_dir = 'S'
+                if ba2num(dmr_data_bits[2:3]) == 1:
+                    lon_dir = 'E'
+                if ba2num(dmr_data_bits[2:3]) == 0:
+                    lon_dir = 'W'
+                lat_deg = ba2num(dmr_data_bits[11:18])
+                lon_deg = ba2num(dmr_data_bits[38:46])
+                lat_min = ba2num(dmr_data_bits[18:24])
+                lon_min = ba2num(dmr_data_bits[46:52])
+                lat_min_dec = ba2num(dmr_data_bits[24:38])
+                lon_min_dec = ba2num(dmr_data_bits[52:66])
+                aprs_lat = str(str(lat_deg) + str(lat_min) + '.' + str(lat_min_dec)[0:2]).zfill(7) + lat_dir
+                aprs_lon = str(str(lon_deg) + str(lon_min) + '.' + str(lon_min_dec)[0:2]).zfill(8) + lon_dir
+                    # Form APRS packet
+                    # For future use below
+                    #aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APHBLD,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(aprs_lat) + icon_table + str(aprs_lon) + icon_icon + '/' + str(comment)
+                    
+                    #logger.info(aprs_loc_packet)
+                logger.info('Lat: ' + str(aprs_lat) + ' Lon: ' + str(aprs_lon))
+                user_settings = ast.literal_eval(os.popen('cat ./user_settings.txt').read())
+                if int_id(_rf_src) not in user_settings:
+                    aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + str(user_ssid) + '>APHBLD,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(aprs_lat) + '/' + str(aprs_lon) + '[/' + aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                else:
+                    if user_settings[int_id(_rf_src)][1]['ssid'] == '':
+                        ssid = user_ssid
+                    if user_settings[int_id(_rf_src)][3]['comment'] == '':
+                        comment = aprs_comment + ' DMR ID: ' + str(int_id(_rf_src))
+                    if user_settings[int_id(_rf_src)][2]['icon'] == '':
+                        icon_table = '/'
+                        icon_icon = '['
+                    if user_settings[int_id(_rf_src)][2]['icon'] != '':
+                        icon_table = user_settings[int_id(_rf_src)][2]['icon'][0]
+                        icon_icon = user_settings[int_id(_rf_src)][2]['icon'][1]
+                    if user_settings[int_id(_rf_src)][1]['ssid'] != '':
+                        ssid = user_settings[int_id(_rf_src)][1]['ssid']
+                    if user_settings[int_id(_rf_src)][3]['comment'] != '':
+                        comment = user_settings[int_id(_rf_src)][3]['comment']
+                    aprs_loc_packet = str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid + '>APHBLD,TCPIP*:/' + str(datetime.datetime.utcnow().strftime("%H%M%Sh")) + str(aprs_lat) + icon_table + str(aprs_lon) + icon_icon + '/' + str(comment)
+                logger.info(aprs_loc_packet)
+                # Attempt to prevent malformed packets from being uploaded.
+                try:
+                    aprslib.parse(aprs_loc_packet)
+                    float(lat) < 91
+                    float(lon) < 121
+                    aprs_send(aprs_loc_packet)
+                    logger.info('Sent APRS packet')
+                except:
+                    logger.info('Error. Failed to send packet. Packet may be malformed.')
+                udt_block = 1
+                hdr_type = ''
+            else:
+                  pass
+# End MD-380 here
+
+        
+        if _dtype == 6 and dmr_data[3] != '5':
             global hdr_start, btf
             hdr_start = dmr_data[0:3]
             self._logger.info('Header from ' + str(get_alias(int_id(_rf_src), subscriber_ids)) + '. DMR ID: ' + str(int_id(_rf_src)))
@@ -240,7 +314,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
             btf = btf_top
             packet_assembly = ''
         # Data blocks at 1/2 rate, see https://github.com/g4klx/MMDVM/blob/master/DMRDefines.h for data types. _dtype_seq defined here also
-        if _dtype == 7:
+        if _dtype == 7 and hdr_type != '380':
             #self._logger.info(str(btf))
             btf = btf - 1
             self._logger.info('Block #: ' + str(btf))
