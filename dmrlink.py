@@ -129,6 +129,32 @@ def aprs_send(packet):
     AIS.close()
     logger.info('Sent APRS packet')
 
+def dashboard_loc_write(call, lat, lon, time):
+    #try:
+    dash_entries = ast.literal_eval(os.popen('cat /tmp/gps_data_user_loc.txt').read())
+   # except:
+    #    dash_entries = []
+    dash_entries.insert(0, {'call': call, 'lat': lat, 'lon': lon, 'time':time})
+    with open("/tmp/gps_data_user_loc.txt", 'w') as user_loc_file:
+            user_loc_file.write(str(dash_entries[:15]))
+            user_loc_file.close()
+    logger.info('User location saved for dashboard')
+    #logger.info(dash_entries)
+
+def dashboard_bb_write(call, dmr_id, time, bulletin):
+    #try:
+    dash_bb = ast.literal_eval(os.popen('cat /tmp/gps_data_user_bb.txt').read())
+   # except:
+    #    dash_entries = []
+    dash_bb.insert(0, {'call': call, 'dmr_id': dmr_id, 'time': time, 'bulliten':bulletin})
+    with open("/tmp/gps_data_user_bb.txt", 'w') as user_bb_file:
+            user_bb_file.write(str(dash_bb[:5]))
+            user_bb_file.close()
+    logger.info('User bulletin entry saved.')
+    #logger.info(dash_bb)
+
+
+
 
 # Process SMS, do something bases on message
 
@@ -137,16 +163,18 @@ def process_sms(from_id, sms):
     if sms == 'ID':
         logger.info(str(get_alias(int_id(from_id), subscriber_ids)) + ' - ' + str(int_id(from_id)))
         pass
-    if sms == 'TEST':
+    elif sms == 'TEST':
         logger.info('It works!')
         pass
-    if '@ICON' in sms:
+    elif '@ICON' in sms:
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@ICON| ','',sms))
-    if '@SSID' in sms:
+    elif '@SSID' in sms:
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@SSID| ','',sms))
-    if '@COM' in sms:
+    elif '@COM' in sms:
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@COM |@COM','',sms))
-    if '@MH' in sms:
+    elif '@BB' in sms:
+        dashboard_bb_write(get_alias(int_id(_rf_src), subscriber_ids), int_id(_rf_src), time.strftime('%H:%M:%S - %m/%d/%y'), re.sub('@BB| ','',sms))
+    elif '@MH' in sms:
         grid_square = re.sub('@MH ', '', sms)
         if len(grid_square) < 6:
             pass
@@ -179,6 +207,7 @@ def process_sms(from_id, sms):
         try:
             aprslib.parse(aprs_loc_packet)
             aprs_send(aprs_loc_packet)
+            dashboard_loc_write(str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid, aprs_lat, aprs_lon, time.strftime('%H:%M:%S - %m/%d/%y'))
             pass
         except:
             logger.info('Exception. Not uploaded')
@@ -295,6 +324,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                     float(lat) < 91
                     float(lon) < 121
                     aprs_send(aprs_loc_packet)
+                    dashboard_loc_write(str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid, aprs_lat, aprs_lon, time.strftime('%H:%M:%S - %m/%d/%y'))
                     logger.info('Sent APRS packet')
                 except:
                     logger.info('Error. Failed to send packet. Packet may be malformed.')
@@ -402,6 +432,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                     float(loc.lat)
                     float(loc.lon)
                     aprs_send(aprs_loc_packet)
+                    dashboard_loc_write(str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid, str(loc.lat[0:7]) + str(loc.lat_dir), str(loc.lon[0:8]) + str(loc.lon_dir), time.strftime('%H:%M:%S - %m/%d/%y'))
                     packet_assembly = ''
                 except:
 
