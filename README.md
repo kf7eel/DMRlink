@@ -10,7 +10,7 @@ Modify settings in hblink-SAMPLE and gps_config.py.
 
 Run: **python dmrlink.py**
 
-**It is best to use this in a subdirectory of the main project to allow sharing of user_settings.txt. This can also work as a stand alone application.**
+**This application was designed to run in subdirectory of the main project to allow sharing of user_settings.txt, and allowing the main project to manage the subscriber_ids and dashboard files. This could also work as a stand alone application, but would require modification.**
 
 ---
 ### FOR SUPPORT, DISCUSSION, GETTING INVOLVED ###
