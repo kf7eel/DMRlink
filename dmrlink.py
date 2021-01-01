@@ -36,7 +36,8 @@ from binascii import a2b_hex as bhex
 from hashlib import sha1
 from socket import inet_ntoa as IPAddr
 from socket import inet_aton as IPHexStr
-from time import time
+#from time import time
+import time
 
 # Twisted Imports
 from twisted.internet.protocol import DatagramProtocol, Factory, Protocol
@@ -173,7 +174,7 @@ def process_sms(from_id, sms):
     elif '@COM' in sms:
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@COM |@COM','',sms))
     elif '@BB' in sms:
-        dashboard_bb_write(get_alias(int_id(_rf_src), subscriber_ids), int_id(_rf_src), time.strftime('%H:%M:%S - %m/%d/%y'), re.sub('@BB| ','',sms))
+        dashboard_bb_write(get_alias(int_id(from_id), subscriber_ids), int_id(from_id), time.strftime('%H:%M:%S - %m/%d/%y'), re.sub('@BB|@BB ','',sms))
     elif '@MH' in sms:
         grid_square = re.sub('@MH ', '', sms)
         if len(grid_square) < 6:
@@ -207,7 +208,7 @@ def process_sms(from_id, sms):
         try:
             aprslib.parse(aprs_loc_packet)
             aprs_send(aprs_loc_packet)
-            dashboard_loc_write(str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid, aprs_lat, aprs_lon, time.strftime('%H:%M:%S - %m/%d/%y'))
+            dashboard_loc_write(str(aprslib.parse(aprs_loc_packet)['from']), aprs_lat, aprs_lon, time.strftime('%H:%M:%S - %m/%d/%y'))
             pass
         except:
             logger.info('Exception. Not uploaded')
@@ -324,7 +325,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                     float(lat) < 91
                     float(lon) < 121
                     aprs_send(aprs_loc_packet)
-                    dashboard_loc_write(str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid, aprs_lat, aprs_lon, time.strftime('%H:%M:%S - %m/%d/%y'))
+                    dashboard_loc_write(str(aprslib.parse(aprs_loc_packet)['from']), aprs_lat, aprs_lon, time.strftime('%H:%M:%S - %m/%d/%y'))
                     logger.info('Sent APRS packet')
                 except:
                     logger.info('Error. Failed to send packet. Packet may be malformed.')
@@ -432,7 +433,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                     float(loc.lat)
                     float(loc.lon)
                     aprs_send(aprs_loc_packet)
-                    dashboard_loc_write(str(get_alias(int_id(_rf_src), subscriber_ids)) + '-' + ssid, str(loc.lat[0:7]) + str(loc.lat_dir), str(loc.lon[0:8]) + str(loc.lon_dir), time.strftime('%H:%M:%S - %m/%d/%y'))
+                    dashboard_loc_write(str(aprslib.parse(aprs_loc_packet)['from']), str(loc.lat[0:7]) + str(loc.lat_dir), str(loc.lon[0:8]) + str(loc.lon_dir), time.strftime('%H:%M:%S - %m/%d/%y'))
                     packet_assembly = ''
                 except:
 
