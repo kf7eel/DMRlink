@@ -19,4 +19,4 @@ aprs_comment = 'IPSC D-APRS -'
 data_id_1 = 311999
 data_id_2 = data_id_1
 
-user_settings_file ='path/to/user_settings.txt'
+user_settings_file ='../user_settings.txt'
