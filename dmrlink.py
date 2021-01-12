@@ -370,7 +370,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                 #sms_hex = str(ba2hx(bitarray(re.sub("\)|\(|bitarray|'", '', packet_assembly))))
                 sms_hex = packet_assembly[74:-8]
                 #NMEA GPS sentence
-                if '$GPRMC' in final_packet:
+                if '$GPRMC' in final_packet or '$GNRMC' in final_packet:
                     self._logger.info(final_packet + '\n')
                     nmea_parse = re.sub('A\*.*|.*\$', '', str(final_packet))
                     loc = pynmea2.parse(nmea_parse, check=False)
@@ -441,7 +441,7 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                     # Get callsign based on DMR ID
                     # End APRS-IS upload
                 # Assume this is an SMS message
-                if '$GPRMC' not in final_packet:
+                if '$GPRMC' not in final_packet or '$GNRMC' not in final_packet:
                     # Motorola type SMS header
                     if '824' in hdr_start or '024' in hdr_start:
                         self._logger.info('\nMotorola type SMS')
