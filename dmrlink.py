@@ -289,8 +289,8 @@ def process_packet(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
                 lon_deg = ba2num(dmr_data_bits[38:46])
                 lat_min = ba2num(dmr_data_bits[18:24])
                 lon_min = ba2num(dmr_data_bits[46:52])
-                lat_min_dec = ba2num(dmr_data_bits[24:38])
-                lon_min_dec = ba2num(dmr_data_bits[52:66])
+                lat_min_dec = ba2num(dmr_data_bits[24:38]).zfill(4)
+                lon_min_dec = ba2num(dmr_data_bits[52:66]).zfill(4)
                 aprs_lat = str(str(lat_deg) + str(lat_min) + '.' + str(lat_min_dec)[0:2]).zfill(7) + lat_dir
                 aprs_lon = str(str(lon_deg) + str(lon_min) + '.' + str(lon_min_dec)[0:2]).zfill(8) + lon_dir
                     # Form APRS packet
