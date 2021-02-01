@@ -71,6 +71,9 @@ import ast
 import re
 import datetime
 
+# Email modules
+import smtplib
+
 # import the settings
 from gps_config import *
 
@@ -154,6 +157,16 @@ def dashboard_bb_write(call, dmr_id, time, bulletin):
     logger.info('User bulletin entry saved.')
     #logger.info(dash_bb)
 
+# Send email via SMTP function
+def send_email(to_email, email_subject, email_message):
+    #global smtp_server
+    sender_address = EMAIL_SENDER
+    account_password = EMAIL_PASSWORD
+    smtp_server = smtplib.SMTP_SSL(SMTP_SERVER, int(SMTP_PORT))
+    smtp_server.login(sender_address, account_password)
+    message = "From: " + aprs_callsign + " D-APRS Gateway\nTo: " + to_email + "\nContent-type: text/html\nSubject: " + email_subject + "\n\n" + '<strong>' + email_subject + '</strong><p>&nbsp;</p><h3>' + email_$
+    smtp_server.sendmail(sender_address, to_email, message)
+    smtp_server.close()
 
 
 
@@ -175,6 +188,15 @@ def process_sms(from_id, sms):
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@COM |@COM','',sms))
     elif '@BB' in sms:
         dashboard_bb_write(get_alias(int_id(from_id), subscriber_ids), int_id(from_id), time.strftime('%H:%M:%S - %m/%d/%y'), re.sub('@BB|@BB ','',sms))
+    elif '@@' and 'E-' in sms:
+        to_email = re.sub('@@| .*', '', sms)
+        email_message = re.sub('@@.*@.*E-', '', sms)
+        email_subject = 'New message from ' + str(get_alias(int_id(from_id), subscriber_ids))
+        logger.info(to_email)
+        logger.info(email_message)
+        logger.info(email_subject)
+        send_email(to_email, email_subject, email_message)
+
     elif '@MH' in sms:
         grid_square = re.sub('@MH ', '', sms)
         if len(grid_square) < 6:
