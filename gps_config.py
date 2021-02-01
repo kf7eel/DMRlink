@@ -20,3 +20,8 @@ data_id_1 = 311999
 data_id_2 = data_id_1
 
 user_settings_file ='../user_settings.txt'
+
+EMAIL_SENDER = 'example@example.org'
+EMAIL_PASSWORD = 'password'
+SMTP_SERVER = 'smtp.example.com'
+SMTP_PORT = '465'
