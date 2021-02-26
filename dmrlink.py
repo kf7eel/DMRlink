@@ -188,14 +188,33 @@ def process_sms(from_id, sms):
         user_setting_write(int_id(from_id), re.sub(' .*|@','',sms), re.sub('@COM |@COM','',sms))
     elif '@BB' in sms:
         dashboard_bb_write(get_alias(int_id(from_id), subscriber_ids), int_id(from_id), time.strftime('%H:%M:%S - %m/%d/%y'), re.sub('@BB|@BB ','',sms))
-    elif '@@' and 'E-' in sms:
-        to_email = re.sub('@@| .*', '', sms)
-        email_message = re.sub('@@.*@.*E-', '', sms)
+    elif '@' and 'E-' in sms:
+        email_message = re.sub('.*@|.* E-', '', sms)
+        to_email = re.sub(' E-.*', '', sms)
         email_subject = 'New message from ' + str(get_alias(int_id(from_id), subscriber_ids))
         logger.info(to_email)
         logger.info(email_message)
         logger.info(email_subject)
         send_email(to_email, email_subject, email_message)
+    elif 'A-' in sms and '@' in sms:
+        #Example SMS text: @ARMDS A-This is a test.
+        aprs_dest = re.sub('@| A-.*','',sms)
+        aprs_msg = re.sub('^@|.* A-|','',sms)
+        logger.info('APRS message to ' + aprs_dest.upper() + '. Message: ' + aprs_msg)
+        user_settings = ast.literal_eval(os.popen('cat ../user_settings.txt').read())
+#        logger.info(user_settings)
+        if int_id(from_id) in user_settings and user_settings[int_id(from_id)][1]['ssid'] != '':
+            ssid = user_settings[int_id(from_id)][1]['ssid']
+        else:
+            ssid = user_ssid
+        aprs_msg_pkt = str(get_alias(int_id(from_id), subscriber_ids)) + '-' + str(ssid) + '>APHBLD,TCPIP*::' + str(aprs_dest).ljust(9).upper() + ':' + aprs_msg[0:73]
+        logger.info(aprs_msg_pkt)
+        try:
+            aprslib.parse(aprs_msg_pkt)
+            aprs_send(aprs_msg_pkt)
+            logger.info('Packet sent.')
+        except:
+            logger.info('Error uploading MSG packet.')
 
     elif '@MH' in sms:
         grid_square = re.sub('@MH ', '', sms)
