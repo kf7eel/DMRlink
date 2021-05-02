@@ -68,9 +68,12 @@ __maintainer__  = 'Cort Buffington, N0MJS'
 __email__       = 'n0mjs@me.com'
 
 glob_seq = 0
+pack_seq = []
 
  # Encode and write to file
-def data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
+def data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, call_type):
+    global pack_seq
+    print(_end)
     #_ipsc_seq = _data[5:6]
     #print(type(_dst_sub))
     dmr_data = ahex(_data)[76:100]
@@ -79,17 +82,25 @@ def data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
     #print(_dtype)
     packet_list = []
     packet_list.append(dmr_data)
-    print(dmr_data)
+##    print(dmr_data)
     encoded_packet = dmr_encode(packet_list, _ts)
 ##    print(encoded_packet)
     #print(_src_sub)
-    mmdvm_pack = mmdvm_encapsulate(_src_sub, _dst_sub, _peerid, _ts, 'unit', _dtype, _ipsc_seq, encoded_packet)
+    if call_type == 'unit':
+        mmdvm_pack = mmdvm_encapsulate(_src_sub, _dst_sub, _peerid, _ts, 'unit', _dtype, _ipsc_seq, encoded_packet)
+    if call_type == 'group':
+        mmdvm_pack = mmdvm_encapsulate(_src_sub, _dst_sub, _peerid, _ts, 'group', _dtype, _ipsc_seq, encoded_packet)
+    pack_seq.append(mmdvm_pack)
+    print(pack_seq)
     
     #if _dtype == 6:
         # Write to file
-    with open('/tmp/.hblink_data_que_ipsc/' + str(glob_seq).zfill(4) + '.mmdvm_packet', "w") as packet_write_file:
-            packet_write_file.write("b'" + mmdvm_pack + "'")
-            packet_write_file.close()
+    if _end == True:
+        with open('/tmp/.hblink_data_que_ipsc/' + str(glob_seq).zfill(4) + '.mmdvm_packet', "w") as packet_write_file:
+##                packet_write_file.write("b'" + mmdvm_pack + "'")
+                packet_write_file.write(str(pack_seq))
+                packet_write_file.close()
+                pack_seq = []
         
 
 
@@ -150,14 +161,14 @@ def mmdvm_encapsulate(dst_id, src_id, peer_id, _slot, _call_type, _dtype_vseq, _
 
     middle_guts = slot + call_type + frame_type + dtype_vseq
     #print(middle_guts)
-    print((stream_id))
+##    print((stream_id))
     dmr_data = str(_dmr_data[0]) #str(re.sub("b'|'", '', str(_dmr_data)))
 ##    print(re.sub('0x','', hex(glob_seq)).zfill(2))
     complete_packet = signature.encode('hex') + re.sub('0x','', hex(glob_seq)).zfill(2) + dest_id + source_id + via_id + ahex(middle_guts) + stream_id + dmr_data + ahex(bitarray('0000000000101111'))#bytes.fromhex(dmr_data)
     #print('Complete: ' + type(ahex(complete_packet)))
 ##    #print(hex2bits(ahex(complete_packet))[119:120])
     #print(bitarray.frombytes(ahex(complete_packet)))
-    print(complete_packet)
+##    print(complete_packet)
     return complete_packet #.decode("hex")
 
 def dmr_encode(packet_list, _slot):
@@ -181,8 +192,8 @@ def dmr_encode(packet_list, _slot):
         # Data sync? 110101011101011111110111011111111101011101010111 - D5D7F77FD757
         new_pkt = ahex(stitched_pkt[:98] + l_slot + sync_data + r_slot + stitched_pkt[98:])
         send_seq.append(new_pkt)
-        print(new_pkt)
-        print(packet_list[0])
+##        print(new_pkt)
+##        print(packet_list[0])
     return send_seq
 
 # Timed loop used for reporting IPSC status
@@ -598,13 +609,13 @@ class IPSC(DatagramProtocol):
         self._logger.debug('(%s) Private Voice Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
     
     def group_data(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
-        print(ahex(_src_sub))
-        data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data)
+        #print(ahex(_src_sub))
+        data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, 'group')
         self._logger.debug('(%s) Group Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
     
     def private_data(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
-        print(ahex(_src_sub))
-        data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data)
+        #print(ahex(_data))
+        data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, 'unit')
         self._logger.debug('(%s) Private Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
 
     def unknown_message(self, _packettype, _peerid, _data):
