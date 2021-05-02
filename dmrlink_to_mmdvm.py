@@ -2,6 +2,7 @@
 #
 ###############################################################################
 #   Copyright (C) 2016  Cortney T. Buffington, N0MJS <n0mjs@me.com>
+#   GPS/Data - Copyright (C) 2021 Eric Craw, KF7EEL <kf7eel@qsl.net>
 #
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -36,7 +37,7 @@ from binascii import a2b_hex as bhex
 from hashlib import sha1
 from socket import inet_ntoa as IPAddr
 from socket import inet_aton as IPHexStr
-from time import time
+from time import time, strftime
 
 # Twisted Imports
 from twisted.internet.protocol import DatagramProtocol, Factory, Protocol
@@ -49,7 +50,7 @@ from ipsc.ipsc_mask import *
 from ipsc.reporting_const import *
 
 # Imports from DMR Utilities package
-from dmr_utils.utils import hex_str_2, hex_str_3, hex_str_4, int_id, try_download, mk_id_dict
+from dmr_utils.utils import hex_str_2, hex_str_3, hex_str_4, int_id, try_download, mk_id_dict, get_alias
 
 from dmr_utils import decode, bptc, const
 from bitarray import bitarray
@@ -60,12 +61,12 @@ import struct
 import random
 import re
 
-__author__      = 'Cortney T. Buffington, N0MJS'
+__author__     = 'Cortney T. Buffington, N0MJS, Eric Craw, KF7EEL'
 __copyright__   = 'Copyright (c) 2013 - 2016 Cortney T. Buffington, N0MJS and the K0USY Group'
 __credits__     = 'Adam Fast, KC0YLK; Dave Kierzkowski, KD8EYF; Steve Zingman, N4IRS; Mike Zingman, N4IRR'
 __license__     = 'GNU GPLv3'
-__maintainer__  = 'Cort Buffington, N0MJS'
-__email__       = 'n0mjs@me.com'
+__maintainer__ = 'Eric Craw, KF7EEL'
+__email__      = 'kf7eel@qsl.net'
 
 glob_seq = 0
 pack_seq = []
@@ -73,7 +74,7 @@ pack_seq = []
  # Encode and write to file
 def data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, call_type):
     global pack_seq
-    print(_end)
+    _ts = _ts - 1
     #_ipsc_seq = _data[5:6]
     #print(type(_dst_sub))
     dmr_data = ahex(_data)[76:100]
@@ -91,7 +92,7 @@ def data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, call_type):
     if call_type == 'group':
         mmdvm_pack = mmdvm_encapsulate(_src_sub, _dst_sub, _peerid, _ts, 'group', _dtype, _ipsc_seq, encoded_packet)
     pack_seq.append(mmdvm_pack)
-    print(pack_seq)
+        #print(pack_seq)
     
     #if _dtype == 6:
         # Write to file
@@ -101,6 +102,7 @@ def data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, call_type):
                 packet_write_file.write(str(pack_seq))
                 packet_write_file.close()
                 pack_seq = []
+                logger.info('Writing packet sequence.')
         
 
 
@@ -610,11 +612,15 @@ class IPSC(DatagramProtocol):
     
     def group_data(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
         #print(ahex(_src_sub))
+        logger.info('Source: ' + str(int_id(_src_sub)) + ' - ' + str(get_alias(int_id(_src_sub), subscriber_ids)) + '. Destination: ' + str(int_id(_dst_sub)) + ' - ' + str(get_alias(int_id(_dst_sub), subscriber_ids)) + ' Time: ' + strftime("%H:%M:%Sh"))
+        logger.info('Data: ' + ahex(_data)[76:100])
         data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, 'group')
         self._logger.debug('(%s) Group Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
     
     def private_data(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data):
         #print(ahex(_data))
+        logger.info('Source: ' + str(int_id(_src_sub)) + ' - ' + str(get_alias(int_id(_src_sub), subscriber_ids)) + '. Destination: ' + str(int_id(_dst_sub)) + ' - ' + str(get_alias(int_id(_dst_sub), subscriber_ids)) + ' Time: ' + strftime("%H:%M:%Sh"))
+        logger.info('Original data: ' + ahex(_data)[76:100])
         data_write(self, _src_sub, _dst_sub, _ts, _end, _peerid, _data, 'unit')
         self._logger.debug('(%s) Private Data Packet Received From: %s, IPSC Peer %s, Destination %s', self._system, int_id(_src_sub), int_id(_peerid), int_id(_dst_sub))
 
@@ -1220,7 +1226,7 @@ if __name__ == '__main__':
     if cli_args.LOG_HANDLERS:
         CONFIG['LOGGER']['LOG_HANDLERS'] = cli_args.LOG_HANDLERS
     logger = config_logging(CONFIG['LOGGER'])
-    logger.info('DMRlink \'dmrlink.py\' (c) 2013 - 2017 N0MJS & the K0USY Group - SYSTEM STARTING...')
+    logger.info('DMRlink \'dmrlink.py\' (c) 2013 - 2017 N0MJS & the K0USY Group - \nMMDVM Bridge script by KF7EEL\nSYSTEM STARTING...')
     
     # Set signal handers so that we can gracefully exit if need be
     def sig_handler(_signal, _frame):
